@@ -1,0 +1,1253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#1a2a4a">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="TB Aviation">
+<link rel="manifest" href="manifest.json">
+<meta name="description" content="Flight Inspection Checklist and Mandatory Documents Management">
+<link rel="apple-touch-icon" href="logo_tbaviation 2020-02.png">
+<link rel="icon" type="image/png" href="logo_tbaviation 2020-02.png">
+<title>TB Aviation | Flight Inspection System</title>
+<link rel="stylesheet" href="style.css">
+
+<script>
+// ===== MSAL FALLBACK FUNCTIONS (must be before MSAL script) =====
+function loadMSALFallback1() {
+  console.warn('❌ CDN 1 (Microsoft) failed, trying CDN 2...');
+  var script = document.createElement('script');
+  script.src = 'https://cdnjs.cloudflare.com/ajax/libs/microsoft-authentication-library/2.38.3/msal.min.js';
+  script.onerror = function() {
+    console.warn('❌ CDN 2 (CloudFlare) failed, trying CDN 3...');
+    loadMSALFallback2();
+  };
+  document.head.appendChild(script);
+}
+
+function loadMSALFallback2() {
+  console.warn('❌ Trying CDN 3 (jsDelivr)...');
+  var script = document.createElement('script');
+  script.src = 'https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js';
+  script.onerror = function() {
+    console.warn('❌ Trying CDN 4 (unpkg)...');
+    loadMSALFallback3();
+  };
+  document.head.appendChild(script);
+}
+
+function loadMSALFallback3() {
+  console.warn('❌ Trying CDN 4 (unpkg)...');
+  var script = document.createElement('script');
+  script.src = 'https://unpkg.com/@azure/msal-browser@2.38.3/lib/msal-browser.umd.js';
+  script.onerror = function() {
+    console.error('❌ All 4 CDNs failed. OneDrive mode disabled.');
+    window.msalAllFailed = true;
+  };
+  document.head.appendChild(script);
+}
+</script>
+
+<!-- MSAL.js — Microsoft authentication / OneDrive -->
+<!-- Attempt 1: Official Microsoft CDN -->
+<script src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"
+  onerror="loadMSALFallback1()"></script>
+
+<script>
+// Monitor: check if MSAL loaded after 2s
+setTimeout(function() {
+  if (typeof window.msal !== 'undefined' && window.msal.PublicClientApplication) {
+    console.log('✅ MSAL loaded successfully!');
+    window.msalLoaded = true;
+  }
+}, 2000);
+</script>
+
+<!-- jsPDF — generates exported PDFs -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script>
+  window.addEventListener('load', function(){
+    if(typeof window.jspdf === 'undefined'){
+      if(typeof jsPDF !== 'undefined'){
+        window.jspdf = { jsPDF: jsPDF };
+      } else if(typeof window.jspdf === 'undefined'){
+        // Retry loading jsPDF
+        var s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+        s.onload = function(){
+          if(typeof window.jspdf === 'undefined' && typeof jsPDF !== 'undefined'){
+            window.jspdf = { jsPDF: jsPDF };
+          }
+        };
+        document.head.appendChild(s);
+      }
+    }
+  });
+</script>
+
+<!-- EmailJS — client-side email (used for password reset) -->
+<script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+
+<!-- PDF.js — converts attached PDFs to images -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+  pdfjsLib.GlobalWorkerOptions.workerSrc=
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+</script>
+</head>
+<body>
+
+<!-- ── Offline Banner ─────────────────────────────────────────── -->
+<div id="offline-banner" style="display:none;position:fixed;top:0;left:0;right:0;z-index:99999;
+  background:#E65100;color:#fff;padding:10px 16px;align-items:center;justify-content:center;
+  gap:10px;font-size:13px;font-weight:700;box-shadow:0 2px 8px rgba(0,0,0,.3);">
+  <span>📴</span>
+  <span>Offline — checklists salvos localmente. Sincroniza quando reconectar.</span>
+</div>
+
+<!-- ===== LOGIN ===== -->
+<div id="pg-login">
+  <div class="login-box">
+    <img src="logo_tbaviation 2020-05.png" alt="TB Aviation" class="login-logo">
+    <p class="login-sub">Flight Inspection System</p>
+    <form onsubmit="event.preventDefault(); login();">
+      <input id="lu" type="text" placeholder="Username" autocomplete="username" aria-label="Username">
+      <input id="lp" type="password" placeholder="Password" autocomplete="current-password" aria-label="Password">
+      <button type="submit">Sign In</button>
+    </form>
+    <span id="le" class="login-err"></span>
+    <p style="margin-top:10px;font-size:12px;text-align:center;display:flex;justify-content:center;gap:18px;">
+      <a href="#" onclick="abrirCriarConta()"
+         style="color:#4A90D9;text-decoration:none;font-weight:600;">
+         ➕ Create Account
+      </a>
+      <a href="#" onclick="abrirEsqueceuSenha()"
+         style="color:#90a4ae;text-decoration:none;font-weight:600;">
+         🔑 Forgot password?
+      </a>
+    </p>
+
+    <!-- MODAL FORGOT PASSWORD -->
+    <div id="mod-forgot-pwd" style="display:none;position:fixed;top:0;left:0;
+      width:100%;height:100%;background:rgba(0,0,0,0.5);
+      z-index:9999;align-items:center;justify-content:center;">
+      <div style="background:white;border-radius:12px;padding:28px 28px 24px;
+        width:90%;max-width:380px;box-shadow:0 8px 32px rgba(0,0,0,0.2);">
+        <h3 style="margin:0 0 6px 0;color:#1a2a4a;font-size:17px;">🔑 Reset Password</h3>
+        <p style="margin:0 0 16px 0;font-size:13px;color:#666;">Enter your username. A temporary password will be sent to your registered email.</p>
+        <form onsubmit="event.preventDefault(); enviarResetSenha();">
+          <input id="fp-user" type="text" placeholder="Username" autocomplete="username"
+            style="width:100%;padding:10px;border:1px solid #B0C4DE;
+            border-radius:7px;font-size:14px;box-sizing:border-box;margin-bottom:12px;">
+          <div id="fp-msg" style="font-size:13px;min-height:18px;margin-bottom:12px;"></div>
+          <div style="display:flex;gap:10px;">
+            <button type="submit" id="fp-btn"
+              style="flex:1;background:#1a2a4a;color:white;border:none;
+              padding:10px;border-radius:7px;cursor:pointer;font-size:14px;font-weight:bold;">
+              Send Reset Email
+            </button>
+            <button type="button" onclick="fecharEsqueceuSenha()"
+              style="flex:1;background:#f0f0f0;color:#333;border:none;
+              padding:10px;border-radius:7px;cursor:pointer;font-size:14px;">
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- OneDrive connect on login page -->
+    <div style="margin-top:14px;border-top:1px solid #dde6f0;padding-top:14px;">
+      <button id="btnOneDriveLogin" onclick="connectOneDrive()"
+              style="width:100%;padding:10px;background:#0078D4;color:#fff;border:none;
+                     border-radius:8px;font-size:13px;font-weight:700;cursor:pointer;
+                     display:flex;align-items:center;justify-content:center;gap:7px;"
+              title="Connect Microsoft OneDrive account">
+        ☁️ Connect OneDrive
+      </button>
+      <p style="margin:6px 0 0;font-size:11px;color:#8a9bb0;text-align:center;">
+        Optional — connect before or after sign in
+      </p>
+    </div>
+
+    <!-- MODAL CREATE ACCOUNT -->
+    <div id="mod-criar-conta" style="display:none;position:fixed;top:0;left:0;
+      width:100%;height:100%;background:rgba(0,0,0,0.5);
+      z-index:9999;align-items:center;justify-content:center;">
+      <div style="background:white;border-radius:12px;padding:32px;
+        width:90%;max-width:400px;box-shadow:0 8px 32px rgba(0,0,0,0.2);
+        max-height:90vh;overflow-y:auto;">
+        <h3 style="margin:0 0 16px 0;color:#1a2a4a;">➕ Create Account</h3>
+        <form onsubmit="event.preventDefault(); criarConta();">
+          <input id="cc-nome" type="text" placeholder="Full name" autocomplete="name" aria-label="Full name"
+            style="width:100%;padding:10px;border:1px solid #B0C4DE;
+            border-radius:7px;font-size:14px;box-sizing:border-box;margin-bottom:10px;">
+          <input id="cc-email" type="email" placeholder="Email" autocomplete="email" aria-label="Email"
+            style="width:100%;padding:10px;border:1px solid #B0C4DE;
+            border-radius:7px;font-size:14px;box-sizing:border-box;margin-bottom:10px;">
+          <input id="cc-user" type="text" placeholder="Username (no spaces)" autocomplete="username" aria-label="Username"
+            style="width:100%;padding:10px;border:1px solid #B0C4DE;
+            border-radius:7px;font-size:14px;box-sizing:border-box;margin-bottom:10px;">
+          <input id="cc-pass" type="password" placeholder="Password (min. 4 characters)" autocomplete="new-password" aria-label="Password"
+            style="width:100%;padding:10px;border:1px solid #B0C4DE;
+            border-radius:7px;font-size:14px;box-sizing:border-box;margin-bottom:10px;">
+          <input id="cc-pass2" type="password" placeholder="Confirm password" autocomplete="new-password" aria-label="Confirm password"
+            style="width:100%;padding:10px;border:1px solid #B0C4DE;
+            border-radius:7px;font-size:14px;box-sizing:border-box;margin-bottom:10px;">
+          <div id="cc-msg" style="font-size:13px;min-height:20px;margin-bottom:12px;"></div>
+          <div style="display:flex;gap:10px;">
+            <button type="submit"
+              style="flex:1;background:#4A90D9;color:white;border:none;
+              padding:10px;border-radius:7px;cursor:pointer;
+              font-size:14px;font-weight:bold;">
+              Create Account
+            </button>
+            <button type="button" onclick="fecharCriarConta()"
+              style="flex:1;background:#f0f0f0;color:#333;border:none;
+              padding:10px;border-radius:7px;cursor:pointer;font-size:14px;">
+              Cancel
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MAIN ===== -->
+<div id="pg-main" style="display:none;">
+
+  <header style="display:flex;align-items:center;justify-content:space-between;
+                 padding:10px 20px;">
+    <!-- ESQUERDA: Logo -->
+    <div class="hlogo">
+      <img src="logo_tbaviation 2020-02.png" alt="TB Aviation"
+           style="width: 100px;display:block;"/>
+    </div>
+
+    <!-- DIREITA: Hello, ADM, OneDrive, Settings, Sign Out -->
+    <div class="hinfo" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <span id="huser"></span>
+      <span id="hadm" style="display:none;">👑 ADM</span>
+      <span id="hdev" style="display:none;background:#e65100;color:white;padding:4px 10px;border-radius:6px;font-size:12px;font-weight:800;letter-spacing:1px;">🛠 DEV</span>
+      <button id="btn-feedback" onclick="abrirFeedback()"
+              style="background:rgba(255,255,255,0.15);color:white;border:1px solid rgba(255,255,255,0.3);
+                     padding:7px 13px;border-radius:7px;cursor:pointer;font-size:13px;font-weight:600;
+                     display:none;position:relative;" title="Send feedback">
+        💬 Feedback <span id="badge-feedback" style="display:none;position:absolute;top:-5px;right:-5px;
+          background:#f44336;color:white;border-radius:50%;width:16px;height:16px;font-size:10px;
+          font-weight:800;line-height:16px;text-align:center;"></span>
+      </button>
+      <button id="btnOneDrive"
+              onclick="connectOneDrive()"
+              style="background:#0078D4;color:white;border:none;
+                     padding:7px 14px;border-radius:7px;
+                     cursor:pointer;font-size:13px;font-weight:bold;"
+              title="Connect Microsoft account">
+        ☁️ OneDrive
+      </button>
+      <button id="btn-dark-mode" onclick="toggleDarkMode()"
+              style="background:#f0f4f8;color:#1a2a4a;border:1px solid #B0C4DE;
+                     padding:7px 12px;border-radius:7px;cursor:pointer;
+                     font-size:15px;" title="Toggle dark mode">
+        🌙
+      </button>
+      <button onclick="abrirSettings()"
+              style="background:#f0f4f8;color:#1a2a4a;border:1px solid #B0C4DE;
+                     padding:7px 12px;border-radius:7px;cursor:pointer;
+                     font-size:15px;" title="Settings">
+        ⚙️
+      </button>
+      <button onclick="logout()">Sign Out</button>
+    </div>
+  </header>
+
+  <!-- TABS -->
+  <div class="tabs">
+    <button id="tb1" class="tab active" onclick="aba('active')">✈️ Flight Inspection</button>
+    <button id="tb-vtivte" class="tab" onclick="aba('vtivte')">✈️ VTI/VTE</button>
+    <button id="tb3" class="tab" onclick="aba('mandatory')">📄 Mandatory Documents</button>
+    <button id="tb2" class="tab" onclick="aba('fin')">📋 Completed</button>
+    <button id="tb-adm" class="tab" style="display:none;" onclick="aba('adm')">👑 Admin</button>
+  </div>
+
+  <!-- PAGE ACTIVE -->
+  <div id="pg-active">
+    <!-- FORM ADD AIRCRAFT (admin only) -->
+    <div id="form-adm" style="display:none;" class="form-adm-new">
+      <div class="form-header">
+        <h3>✈️ Add New Aircraft</h3>
+        <p class="form-subtitle">Fill in all required fields to register a new aircraft for inspection</p>
+      </div>
+      
+      <div class="form-section">
+        <div class="form-group-full">
+          <label>Registration Number *</label>
+          <input id="f-mat" type="text" placeholder="Ex: PP-JDB" class="form-input-large">
+          <small class="form-hint">Aircraft registration/tail number</small>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <div class="form-group-half">
+          <label>Aircraft Model *</label>
+          <select id="f-mod" onchange="toggleCustomModel()" class="form-input-large">
+            <option value="">-- Select model --</option>
+            <option value="EMB-505 - Phenom 300">EMB-505 - Phenom 300</option>
+            <option value="Falcon 900EX">Falcon 900EX</option>
+            <option value="Hawker 400A">Hawker 400A</option>
+            <option value="C750 - Citation X">C750 - Citation X</option>
+            <option value="C525 - CJ1">C525 - CJ1</option>
+            <option value="C525B - CJ3">C525B - CJ3</option>
+            <option value="Gulfstream G280">Gulfstream G280</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+        
+        <div class="form-group-half" id="grp-custom" style="display:none;">
+          <label>Custom Model Name *</label>
+          <input id="f-mod-custom" type="text" placeholder="Enter model name" class="form-input-large">
+        </div>
+      </div>
+
+      <div class="form-section">
+        <div class="form-group-half">
+          <label>Serial Number *</label>
+          <input id="f-serie" type="text" placeholder="Serial number" class="form-input-large">
+          <small id="hint-serie" class="form-hint" style="color:#4A90D9;"></small>
+        </div>
+
+        <div class="form-group-half">
+          <label>Responsible Person *</label>
+          <select id="f-resp" class="form-input-large">
+            <option value="">-- Select --</option>
+            <option>Gabriela Botteon</option>
+            <option>Caio Chiavelli</option>
+            <option>Thomas Antonelli</option>
+            <option>Henrique Cuin</option>
+            <option>Matheus Gonzalez</option>
+            <option>Rafael Braz</option>
+            <option>Luis Henrique</option>
+            <option>Rafael Henrique</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button class="btn-green btn-large" onclick="addAircraft()">✈️ Add Aircraft</button>
+      </div>
+    </div>
+
+    <!-- SEARCH -->
+    <div class="search-bar">
+      <input id="busca" type="text" placeholder="🔍 Search aircraft..." oninput="render()">
+    </div>
+
+    <!-- LEGENDA - APENAS APLICATIVO -->
+    <div class="legenda-app">
+      <div class="legenda-item">
+        <span class="legenda-badge" style="background:#2e7d32;">✓ AC</span>
+        <span>Acceptable</span>
+      </div>
+      <div class="legenda-item">
+        <span class="legenda-badge" style="background:#e65100;">R</span>
+        <span>With Restrictions</span>
+      </div>
+      <div class="legenda-item">
+        <span class="legenda-badge" style="background:#c62828;">✕ NAC</span>
+        <span>Not Acceptable</span>
+      </div>
+      <div class="legenda-item">
+        <span class="legenda-badge" style="background:#546e7a;">N/A</span>
+        <span>Not Applicable</span>
+      </div>
+      <div class="legenda-item">
+        <span class="legenda-badge" style="background:#90a4ae;">—</span>
+        <span>Pending</span>
+      </div>
+    </div>
+
+    <!-- LIST -->
+    <div id="lista"></div>
+  </div>
+
+  <!-- PAGE VTI/VTE -->
+<div id="pg-vtivte" style="display:none;">
+  <!-- FORM ADD INSPECTION -->
+  <div id="form-vtivte-adm" style="display:none;" class="form-adm-new">
+    <div class="form-header">
+      <h3>✈️ Adicionar Vistoria VTI/VTE</h3>
+      <p class="form-subtitle">Registrar uma nova vistoria VTI ou VTE</p>
+    </div>
+    <div class="form-section">
+      <div class="form-group-full">
+        <label>Marcas (Matrícula) *</label>
+        <input id="fvtivte-mat" type="text" placeholder="Ex: PP-JDB" class="form-input-large">
+      </div>
+    </div>
+    <div class="form-section">
+      <div class="form-group-half">
+        <label>Tipo de Vistoria *</label>
+        <select id="fvtivte-type" class="form-input-large">
+          <option value="">-- Selecione --</option>
+          <option value="VTI">VTI (Vistoria Técnica Inicial)</option>
+          <option value="VTE">VTE (Vistoria Técnica Especial)</option>
+        </select>
+      </div>
+      <div class="form-group-half">
+        <label>Modelo da Aeronave *</label>
+        <select id="fvtivte-mod" class="form-input-large">
+          <option value="">-- Selecione o modelo --</option>
+          <option value="EMB-505 - Phenom 300">EMB-505 - Phenom 300</option>
+          <option value="Falcon 900EX">Falcon 900EX</option>
+          <option value="Hawker 400A">Hawker 400A</option>
+          <option value="C750 - Citation X">C750 - Citation X</option>
+          <option value="C525 - CJ1">C525 - CJ1</option>
+          <option value="C525B - CJ3">C525B - CJ3</option>
+          <option value="Gulfstream G280">Gulfstream G280</option>
+          <option value="Other">Outro</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-section">
+      <div class="form-group-half">
+        <label>Número de Série *</label>
+        <input id="fvtivte-serie" type="text" placeholder="Número de série" class="form-input-large">
+      </div>
+      <div class="form-group-half">
+        <label>Responsável *</label>
+        <select id="fvtivte-resp" class="form-input-large">
+          <option value="">-- Selecione --</option>
+          <option>Gabriela Botteon</option>
+          <option>Caio Chiavelli</option>
+          <option>Thomas Antonelli</option>
+          <option>Henrique Cuin</option>
+          <option>Matheus Gonzalez</option>
+          <option>Rafael Braz</option>
+          <option>Luis Henrique</option>
+          <option>Rafael Henrique</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn-green btn-large" onclick="addVTIVTE()">✈️ Adicionar Vistoria</button>
+    </div>
+  </div>
+
+    <!-- SEARCH -->
+    <div class="search-bar">
+        <input id="busca-vtivte" type="text" placeholder="🔍 Buscar..." oninput="renderVTIVTE()">
+    </div>
+
+    <!-- LEGENDA ANAC F-145-18I -->
+    <div class="legenda-app">
+        <div class="legenda-item" title="Atende aos requisitos regulamentares, operacionais ou de manutenção">
+            <span class="legenda-badge" style="background:#43a047;">OK</span>
+            <span>Satisfatório</span>
+        </div>
+        <div class="legenda-item" title="Não aplicável ao tipo de vistoria ou aeronave, motor ou hélice">
+            <span class="legenda-badge" style="background:#78909c;">NA</span>
+            <span>Não Aplicável</span>
+        </div>
+        <div class="legenda-item" title="Não apresentado o comprovante de cumprimento">
+            <span class="legenda-badge" style="background:#fb8c00;">FT</span>
+            <span>Faltando</span>
+        </div>
+        <div class="legenda-item" title="Item verificado, porém não atende aos requisitos regulamentares, operacionais ou de manutenção">
+            <span class="legenda-badge" style="background:#e53935;">DF</span>
+            <span>Deficiente</span>
+        </div>
+    </div>
+
+      <!-- LIST -->
+      <div id="lista-vtivte" style="display:block;"></div>
+
+    <!-- VTI/VTE FINALIZED LIST (para renderFinVTIVTE) -->
+    <div id="lista-fin-vtivte" style="display:none;"></div>
+</div>
+
+  <!-- PAGE MANDATORY DOCUMENTS -->
+  <div id="pg-mandatory" style="display:none;">
+    <!-- FORM ADD MANDATORY DOCUMENT (admin only) -->
+    <div id="form-mandatory-adm" style="display:none;" class="form-adm-new">
+      <div class="form-header">
+        <h3>📄 Add Mandatory Document</h3>
+        <p class="form-subtitle">Register required documents for aircraft compliance</p>
+      </div>
+
+      <div class="form-section">
+        <div class="form-group-full">
+          <label>Registration Number *</label>
+          <input id="md-mat" type="text" placeholder="Ex: PP-JDB" class="form-input-large">
+          <small class="form-hint">Aircraft registration/tail number</small>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <div class="form-group-half">
+          <label>Aircraft Model *</label>
+          <select id="md-mod" class="form-input-large" onchange="atualizarSerialHint()">
+            <option value="">-- Select model --</option>
+            <option value="EMB-505 - Phenom 300">EMB-505 - Phenom 300</option>
+            <option value="Falcon 900EX">Falcon 900EX</option>
+            <option value="Hawker 400A">Hawker 400A</option>
+            <option value="C750 - Citation X">C750 - Citation X</option>
+            <option value="C525 - CJ1">C525 - CJ1</option>
+            <option value="C525B - CJ3">C525B - CJ3</option>
+            <option value="Gulfstream G280">Gulfstream G280</option>
+            <option value="Other">Other</option>
+          </select>
+          <small id="hint-mand-serie" class="form-hint" style="color:#4A90D9;"></small>
+        </div>
+
+        <div class="form-group-half">
+          <label>Serial Number *</label>
+          <input id="md-serie" type="text" placeholder="Serial number" class="form-input-large">
+        </div>
+      </div>
+
+      <div class="form-section">
+        <div class="form-group-half">
+          <label>Responsible Person *</label>
+          <select id="md-resp" class="form-input-large">
+            <option value="">-- Select --</option>
+            <option>Gabriela Botteon</option>
+            <option>Caio Chiavelli</option>
+            <option>Thomas Antonelli</option>
+            <option>Henrique Cuin</option>
+            <option>Matheus Gonzalez</option>
+            <option>Rafael Braz</option>
+            <option>Luis Henrique</option>
+            <option>Rafael Henrique</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button class="btn-green btn-large" onclick="addMandatory()">📄 Add Document</button>
+      </div>
+    </div>
+
+    <!-- SEARCH -->
+    <div class="search-bar">
+      <input id="busca-mandatory" type="text" placeholder="🔍 Search documents..." oninput="renderMandatory()">
+    </div>
+
+    <!-- LIST -->
+    <div id="lista-mandatory"></div>
+  </div>
+
+<!-- PAGE ADMIN (admin only) -->
+<div id="pg-adm" style="display:none;">
+  <!-- Sub-tabs (horizontally scrollable on mobile) -->
+  <div style="position:relative;">
+  <div id="adm-tab-bar" style="display:flex;gap:8px;padding:12px 16px;background:#f5f7fa;border-bottom:2px solid #e0e7ef;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;-ms-overflow-style:none;">
+    <button id="adm-tab-log" onclick="admTab('log')"
+      style="padding:8px 14px;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;background:#1a2a4a;color:white;transition:all .2s;white-space:nowrap;flex-shrink:0;">
+      📊 Activity Log
+    </button>
+    <button id="adm-tab-cl" onclick="admTab('cl')"
+      style="padding:8px 14px;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;background:#e8edf4;color:#1a2a4a;transition:all .2s;white-space:nowrap;flex-shrink:0;">
+      ✈️ Checklists
+    </button>
+    <button id="adm-tab-tpl" onclick="admTab('tpl')"
+      style="padding:8px 14px;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;background:#e8edf4;color:#1a2a4a;transition:all .2s;white-space:nowrap;flex-shrink:0;">
+      📋 Templates
+    </button>
+    <button id="adm-tab-photos" onclick="admTab('photos')"
+      style="padding:8px 14px;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;background:#e8edf4;color:#1a2a4a;transition:all .2s;white-space:nowrap;flex-shrink:0;">
+      🛩️ Photos
+    </button>
+    <button id="adm-tab-stats" onclick="admTab('stats')"
+      style="padding:8px 14px;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;background:#e8edf4;color:#1a2a4a;transition:all .2s;white-space:nowrap;flex-shrink:0;">
+      📈 Dashboard
+    </button>
+    <button id="adm-tab-users" onclick="admTab('users')"
+      style="padding:8px 14px;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;background:#e8edf4;color:#1a2a4a;transition:all .2s;white-space:nowrap;flex-shrink:0;">
+      👥 Users
+    </button>
+    <button id="adm-tab-history" onclick="admTab('history')"
+      style="padding:8px 14px;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;background:#e8edf4;color:#1a2a4a;transition:all .2s;white-space:nowrap;flex-shrink:0;">
+      📊 History
+    </button>
+
+    <button id="adm-tab-feedback" onclick="admTab('feedback')"
+      style="padding:8px 14px;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;background:#e8edf4;color:#1a2a4a;transition:all .2s;white-space:nowrap;flex-shrink:0;position:relative;">
+      📬 Feedback <span id="adm-feedback-badge" style="display:none;position:absolute;top:4px;right:6px;
+        background:#f44336;color:white;border-radius:50%;width:16px;height:16px;font-size:10px;
+        font-weight:800;line-height:16px;text-align:center;"></span>
+    </button>
+    <button id="adm-tab-export" onclick="admTab('export')"
+      style="padding:8px 14px;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;background:#e8edf4;color:#1a2a4a;transition:all .2s;white-space:nowrap;flex-shrink:0;">
+      💾 Export
+    </button>
+    <button id="adm-tab-design" onclick="admTab('design')"
+      style="padding:8px 14px;border:none;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;background:#e8edf4;color:#1a2a4a;transition:all .2s;white-space:nowrap;flex-shrink:0;">
+      🎨 Design
+    </button>
+    <button id="adm-tab-changes" onclick="admTab('changes')"
+      style="display:none;padding:8px 14px;border:2px solid #e65100;border-radius:8px;cursor:pointer;font-size:12px;font-weight:700;background:#e8edf4;color:#e65100;transition:all .2s;white-space:nowrap;flex-shrink:0;">
+      🛠 Changes
+    </button>
+  </div>
+  <!-- fade hint showing more tabs to the right -->
+  <div id="adm-tab-fade" style="position:absolute;right:0;top:0;bottom:0;width:36px;background:linear-gradient(to right,transparent,#f5f7fa);pointer-events:none;"></div>
+  </div>
+
+  <!-- Activity Log Panel -->
+  <div id="adm-pg-log">
+    <div id="adm-log-content" style="padding:16px;"></div>
+  </div>
+
+  <!-- Changes Panel (dev only) -->
+  <div id="adm-pg-changes" style="display:none;padding:20px;"></div>
+
+  <!-- Checklist Manager Panel -->
+  <div id="adm-pg-cl" style="display:none;">
+    <div id="adm-cl-content" style="padding:16px;"></div>
+  </div>
+
+  <!-- Checklist Templates Panel -->
+  <div id="adm-pg-tpl" style="display:none;">
+    <div id="adm-tpl-content" style="padding:16px;"></div>
+  </div>
+
+  <!-- Aircraft Photos Panel -->
+  <div id="adm-pg-photos" style="display:none;">
+    <div id="adm-photos-content" style="padding:16px;"></div>
+  </div>
+
+  <!-- Dashboard / Statistics Panel -->
+  <div id="adm-pg-stats" style="display:none;">
+    <div id="adm-stats-content" style="padding:16px;"></div>
+  </div>
+
+  <!-- Backup & Export Panel -->
+  <div id="adm-pg-export" style="display:none;">
+    <div id="adm-export-content" style="padding:16px;"></div>
+  </div>
+
+  <!-- Design Preview Panel (VTI/VTE-style applied to Flight/Mandatory) -->
+  <div id="adm-pg-design" style="display:none;">
+    <div id="adm-design-content" style="padding:16px;"></div>
+  </div>
+
+  <!-- Feedback Panel -->
+  <div id="adm-pg-feedback" style="display:none;">
+    <div id="adm-feedback-content" style="padding:16px;"></div>
+  </div>
+
+  <!-- Users Panel -->
+  <div id="adm-pg-users" style="display:none;">
+    <div id="adm-users-content" style="padding:16px;"></div>
+  </div>
+
+  <!-- Aircraft History Panel -->
+  <div id="adm-pg-history" style="display:none;">
+    <div id="adm-history-content" style="padding:16px;"></div>
+  </div>
+
+
+</div>
+
+<!-- PAGE COMPLETED -->
+<div id="pg-fin" style="display:none;">
+  <div class="completed-container">
+    <!-- FILTERS & SEARCH -->
+    <div class="completed-filters">
+      <div class="completed-search-box">
+        <input id="completed-search" type="text" placeholder="🔍 Search by aircraft, model, or responsible..." oninput="filterCompleted()">
+      </div>
+        <button class="completed-filter-btn active" onclick="filterByType('all')">📋 All</button>
+        <button class="completed-filter-btn" onclick="filterByType('flight')">✈️ Flight</button>
+        <button class="completed-filter-btn" onclick="filterByType('vti')">✈️ VTI</button>
+        <button class="completed-filter-btn" onclick="filterByType('vte')">🔧 VTE</button>
+        <button class="completed-filter-btn" onclick="filterByType('mandatory')">📄 Mandatory</button>
+        <button class="completed-filter-btn" onclick="filterByStatus('ok')">✓ Complete</button>
+        <button class="completed-filter-btn" onclick="filterByStatus('warn')">⚠️ Incomplete</button>
+    </div>
+
+    <!-- FLIGHT INSPECTION SECTION -->
+    <div class="completed-section" id="completed-flight-section" style="display:none;">
+      <div class="completed-section-title">
+        ✈️ Flight Inspection
+        <span class="completed-count" id="completed-flight-count">0</span>
+      </div>
+      <div class="completed-grid" id="completed-flight-grid"></div>
+    </div>
+
+      <!-- VTI/VTE SECTION -->
+  <div class="completed-section" id="completed-vtivte-section" style="display:none;">
+    <div class="completed-section-title">
+      ✈️ Vistorias VTI/VTE
+      <span class="completed-count" id="completed-vtivte-count">0</span>
+    </div>
+    <div class="completed-grid" id="completed-vtivte-grid"></div>
+  </div>
+
+    <!-- MANDATORY DOCUMENTS SECTION -->
+    <div class="completed-section" id="completed-mandatory-section" style="display:none;">
+      <div class="completed-section-title">
+        📄 Mandatory Documents
+        <span class="completed-count" id="completed-mandatory-count">0</span>
+      </div>
+      <div class="completed-grid" id="completed-mandatory-grid"></div>
+    </div>
+
+    <!-- EMPTY STATE -->
+    <div class="completed-empty" id="completed-empty-state">
+      <div class="completed-empty-icon">📋</div>
+      <p>No completed documents yet</p>
+      <small style="color:#ccc;">Documents will appear here once finalized</small>
+    </div>
+  </div>
+</div>
+</div>
+
+
+<!-- ===== MODAL EDIT TEMPLATE ITEM (admin) ===== -->
+<div id="mod-tpl-edit" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;
+     background:rgba(0,0,0,0.6);z-index:9998;align-items:center;justify-content:center;">
+  <div style="background:white;border-radius:14px;padding:28px;max-width:500px;width:95%;
+              box-shadow:0 8px 32px rgba(0,0,0,0.2);">
+    <h3 id="mod-tpl-edit-title" style="margin:0 0 16px 0;color:#1a2a4a;font-size:16px;">✏️ Edit Item</h3>
+    <input type="hidden" id="tpl-edit-sec-idx">
+    <input type="hidden" id="tpl-edit-item-idx">
+    <input type="hidden" id="tpl-edit-mode"><!-- 'item' | 'section' | 'new-item' | 'new-section' -->
+    <div id="tpl-type-row" style="margin-bottom:12px;">
+      <label style="display:block;font-size:13px;font-weight:600;color:#444;margin-bottom:4px;">Item Type</label>
+      <select id="tpl-edit-type" style="width:100%;padding:9px 12px;border:1.5px solid #dde3ed;border-radius:8px;font-size:13px;box-sizing:border-box;">
+        <option value="standard">✓ Standard — AC / R / NA / N/A buttons</option>
+        <option value="select">☑ Select Toggle — one button (like LOAs)</option>
+        <option value="qty">🔢 Quantity + Standard — fill in a value first</option>
+      </select>
+    </div>
+    <textarea id="tpl-edit-text"
+      style="width:100%;min-height:80px;padding:10px 12px;border:1.5px solid #dde3ed;border-radius:8px;
+             font-size:14px;line-height:1.5;resize:vertical;box-sizing:border-box;font-family:inherit;"></textarea>
+    <div style="display:flex;gap:10px;margin-top:16px;">
+      <button onclick="tplSaveModal()"
+        style="flex:1;padding:12px;background:#43a047;color:white;border:none;border-radius:8px;
+               cursor:pointer;font-weight:700;font-size:14px;">
+        ✓ Save
+      </button>
+      <button onclick="document.getElementById('mod-tpl-edit').style.display='none'"
+        style="flex:1;padding:12px;background:#f0f0f0;color:#333;border:none;border-radius:8px;
+               cursor:pointer;font-weight:700;font-size:14px;">
+        ✕ Cancel
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL EDIT AIRCRAFT (admin) ===== -->
+<div id="mod-edit-aircraft" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;
+     background:rgba(0,0,0,0.6);z-index:9998;align-items:center;justify-content:center;">
+  <div style="background:white;border-radius:14px;padding:28px;max-width:440px;width:95%;
+              box-shadow:0 8px 32px rgba(0,0,0,0.2);">
+    <h3 style="margin:0 0 20px 0;color:#1a2a4a;">✏️ Edit Aircraft</h3>
+    <input type="hidden" id="edit-ac-type">
+    <input type="hidden" id="edit-ac-idx">
+    <div style="margin-bottom:12px;">
+      <label style="display:block;font-size:13px;font-weight:600;color:#444;margin-bottom:4px;">Registration *</label>
+      <input id="edit-ac-mat" type="text" style="width:100%;padding:10px 12px;border:1.5px solid #dde3ed;border-radius:8px;font-size:14px;box-sizing:border-box;">
+    </div>
+    <div style="margin-bottom:12px;">
+      <label style="display:block;font-size:13px;font-weight:600;color:#444;margin-bottom:4px;">Serial Number</label>
+      <input id="edit-ac-serie" type="text" style="width:100%;padding:10px 12px;border:1.5px solid #dde3ed;border-radius:8px;font-size:14px;box-sizing:border-box;">
+    </div>
+    <div style="margin-bottom:20px;">
+      <label style="display:block;font-size:13px;font-weight:600;color:#444;margin-bottom:4px;">Responsible *</label>
+      <select id="edit-ac-resp" style="width:100%;padding:10px 12px;border:1.5px solid #dde3ed;border-radius:8px;font-size:14px;box-sizing:border-box;">
+        <option value="">-- Select --</option>
+        <option>Gabriela Botteon</option>
+        <option>Caio Chiavelli</option>
+        <option>Thomas Antonelli</option>
+        <option>Henrique Cuin</option>
+        <option>Matheus Gonzalez</option>
+        <option>Rafael Braz</option>
+        <option>Luis Henrique</option>
+        <option>Rafael Henrique</option>
+      </select>
+    </div>
+    <div style="display:flex;gap:10px;">
+      <button onclick="saveEditAircraft()"
+        style="flex:1;padding:12px;background:#43a047;color:white;border:none;border-radius:8px;
+               cursor:pointer;font-weight:700;font-size:14px;">
+        ✓ Save
+      </button>
+      <button onclick="document.getElementById('mod-edit-aircraft').style.display='none'"
+        style="flex:1;padding:12px;background:#f0f0f0;color:#333;border:none;border-radius:8px;
+               cursor:pointer;font-weight:700;font-size:14px;">
+        ✕ Cancel
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL IMAGE ===== -->
+<div id="mod-img" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.92);z-index:9999;align-items:center;justify-content:center;flex-direction:column;gap:10px;">
+  <!-- Controls bar -->
+  <div style="display:flex;gap:8px;align-items:center;z-index:10000;flex-shrink:0;">
+    <button onclick="_zoomImg(-0.3)" title="Zoom out" style="width:38px;height:38px;border-radius:50%;border:none;background:rgba(255,255,255,0.18);color:white;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:700;">−</button>
+    <button onclick="_zoomImg(0)" title="Reset zoom" style="padding:6px 14px;border-radius:20px;border:none;background:rgba(255,255,255,0.18);color:white;font-size:11px;cursor:pointer;font-weight:600;" id="mod-img-zoom-lbl">100%</button>
+    <button onclick="_zoomImg(0.3)" title="Zoom in" style="width:38px;height:38px;border-radius:50%;border:none;background:rgba(255,255,255,0.18);color:white;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-weight:700;">+</button>
+    <div style="width:1px;height:24px;background:rgba(255,255,255,0.2);margin:0 4px;"></div>
+    <button onclick="_saveImgViewer()" title="Save image" style="width:38px;height:38px;border-radius:50%;border:none;background:rgba(255,255,255,0.18);color:white;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;" title="Save image">💾</button>
+    <button onclick="document.getElementById('mod-img').style.display='none'" title="Close (ESC)" style="width:38px;height:38px;border-radius:50%;border:none;background:rgba(255,255,255,0.18);color:white;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;">✕</button>
+  </div>
+  <!-- Scrollable image area -->
+  <div id="mod-img-wrap" onclick="if(event.target===this)document.getElementById('mod-img').style.display='none'" style="overflow:auto;flex:1;width:100%;display:flex;align-items:center;justify-content:center;cursor:zoom-in;">
+    <img id="mod-img-src" src="" style="border-radius:8px;transform-origin:center center;transition:transform 0.2s ease;max-width:95%;box-shadow:0 8px 40px rgba(0,0,0,0.5);">
+  </div>
+  <div style="font-size:11px;color:rgba(255,255,255,0.35);padding-bottom:8px;flex-shrink:0;">Tap 💾 to save · Pinch or use +/− to zoom · ESC to close</div>
+</div>
+
+<!-- ===== MODAL PHOTO ===== -->
+<div id="mod-foto" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9998;align-items:center;justify-content:center;">
+  <div id="mod-foto-inner" style="background:#111;border-radius:20px;width:96%;max-width:480px;max-height:95vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,0.6);">
+
+    <!-- HEADER -->
+    <div style="background:#1a2a4a;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;">
+      <div>
+        <div style="color:white;font-weight:700;font-size:15px;">📸 Add Photo</div>
+        <div id="mod-foto-label" style="color:#8ab4d8;font-size:11px;margin-top:2px;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"></div>
+      </div>
+      <button onclick="fecharModFoto()" style="background:rgba(255,255,255,0.1);border:none;color:white;width:32px;height:32px;border-radius:50%;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center;">✕</button>
+    </div>
+
+    <!-- PREVIEW AREA -->
+    <div id="foto-cam-area" style="position:relative;background:#000;flex:1;min-height:200px;display:flex;align-items:center;justify-content:center;">
+
+      <!-- placeholder before photo selected -->
+      <div id="foto-placeholder" style="text-align:center;color:#444;padding:30px;">
+        <div style="font-size:52px;margin-bottom:12px;">📷</div>
+        <div style="font-size:14px;font-weight:600;color:#666;">Use Camera ou Gallery abaixo</div>
+      </div>
+
+      <!-- preview image after capture/upload -->
+      <img id="prev-img" src="" style="display:none;width:100%;max-height:320px;object-fit:contain;">
+
+      <!-- retake button shown after photo selected -->
+      <button id="btn-retake"
+        onclick="descartarFoto()"
+        style="display:none;position:absolute;top:10px;left:10px;
+               background:rgba(0,0,0,0.55);border:none;color:white;
+               padding:6px 12px;border-radius:20px;cursor:pointer;font-size:12px;font-weight:600;">
+        🔄 Retake
+      </button>
+    </div>
+
+    <!-- BOTTOM CONTROLS -->
+    <div style="background:#1a1a1a;padding:14px 16px;display:flex;flex-direction:column;gap:10px;">
+
+      <!-- row 1: camera + gallery -->
+      <div style="display:flex;gap:10px;">
+        <label style="flex:1;padding:12px;background:#1565C0;color:white;border:none;border-radius:10px;
+                      cursor:pointer;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:6px;text-align:center;">
+          📷 Camera
+          <input id="inp-foto-cam" type="file" accept="image/*" capture="environment" onchange="uploadFoto(event)" style="display:none;">
+        </label>
+
+        <label style="flex:1;padding:12px;background:#37474f;color:white;border:none;border-radius:10px;
+                      cursor:pointer;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;gap:6px;text-align:center;">
+          🖼 Gallery
+          <input id="inp-foto" type="file" accept="image/*" onchange="uploadFoto(event)" style="display:none;">
+        </label>
+
+      </div>
+
+    </div>
+
+  </div>
+</div>
+
+<!-- ===== MODAL SETTINGS ===== -->
+<div id="mod-settings" onclick="if(event.target===this)fecharSettings()" style="display:none;position:fixed;top:0;left:0;
+  width:100%;height:100%;background:rgba(0,0,0,0.5);
+  z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:white;border-radius:12px;padding:32px;
+    width:90%;max-width:400px;box-shadow:0 8px 32px rgba(0,0,0,0.2);
+    max-height:90vh;overflow-y:auto;">
+    <h3 style="margin:0 0 20px 0;color:#1a2a4a;">⚙️ Settings</h3>
+
+    <!-- CHANGE PASSWORD -->
+    <h4 style="margin:0 0 12px 0;color:#333;font-size:14px;">🔐 Change Password</h4>
+    <form onsubmit="event.preventDefault(); mudarSenha();">
+      <input type="text" autocomplete="username" aria-hidden="true" style="position:absolute;left:-9999px;top:-9999px;" tabindex="-1">
+      <input id="sp-atual" type="password" placeholder="Current password" autocomplete="current-password" aria-label="Current password"
+        style="width:100%;padding:10px;border:1px solid #B0C4DE;
+        border-radius:7px;font-size:14px;box-sizing:border-box;margin-bottom:10px;">
+      <input id="sp-nova" type="password" placeholder="New password (min. 4 characters)" autocomplete="new-password" aria-label="New password"
+        style="width:100%;padding:10px;border:1px solid #B0C4DE;
+        border-radius:7px;font-size:14px;box-sizing:border-box;margin-bottom:10px;">
+      <input id="sp-nova2" type="password" placeholder="Confirm new password" autocomplete="new-password" aria-label="Confirm new password"
+        style="width:100%;padding:10px;border:1px solid #B0C4DE;
+        border-radius:7px;font-size:14px;box-sizing:border-box;margin-bottom:10px;">
+      <div id="sp-msg" style="font-size:13px;min-height:20px;margin-bottom:12px;"></div>
+      <div style="display:flex;gap:10px;">
+        <button type="submit"
+          style="flex:1;background:#4A90D9;color:white;border:none;
+          padding:10px;border-radius:7px;cursor:pointer;
+          font-size:14px;font-weight:bold;">
+          Save Password
+        </button>
+        <button type="button" onclick="fecharSettings()"
+          style="flex:1;background:#f0f0f0;color:#333;border:none;
+          padding:10px;border-radius:7px;cursor:pointer;font-size:14px;">
+          Cancel
+        </button>
+      </div>
+    </form>
+
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL VIEW COMPLETED ===== -->
+<div id="mod-fin" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;
+     background:rgba(0,0,0,0.7);z-index:9997;align-items:center;justify-content:center;">
+  <div style="background:white;border-radius:12px;padding:24px;max-width:700px;width:95%;
+              max-height:90vh;overflow-y:auto;">
+    <div id="mod-fin-content"></div>
+  </div>
+</div>
+
+<!-- ===== MODAL EDIT COMPLETED ===== -->
+<div id="mod-edt-fin" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;
+                background:rgba(0,0,0,0.5);z-index:9998;justify-content:center;align-items:center;">
+  <div style="background:white;border-radius:8px;padding:24px;width:90%;max-width:500px;
+              box-shadow:0 8px 24px rgba(0,0,0,0.2);">
+    <h3>✏️ Edit Completed Record</h3>
+    <input type="hidden" id="edt-fin-idx">
+    
+    <label style="display:block;margin:16px 0 8px;font-weight:bold;">Reason for Edit:</label>
+    <textarea id="edt-fin-obs" rows="4" style="width:100%;padding:8px;border:1px solid #B0C4DE;
+              border-radius:4px;font-size:14px;resize:vertical;"></textarea>
+    
+    <div id="edt-fin-msg" style="margin:12px 0;font-size:14px;"></div>
+    
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
+      <button onclick="fecharEditFin()" style="padding:8px 16px;background:#90a4ae;color:white;
+              border:none;border-radius:4px;cursor:pointer;font-size:14px;">Cancel</button>
+      <button onclick="salvarEdicaoFin()" style="padding:8px 16px;background:#2e7d32;color:white;
+              border:none;border-radius:4px;cursor:pointer;font-size:14px;font-weight:bold;">✓ Save Edit</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL FLIGHT INSPECTION FINALIZATION FLOW ===== -->
+<div id="mod-fi-flow" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;
+     background:rgba(0,0,0,0.7);z-index:9998;align-items:center;justify-content:center;">
+  <div style="background:white;border-radius:12px;padding:32px;max-width:500px;width:95%;
+              box-shadow:0 8px 32px rgba(0,0,0,0.2);">
+    <h3 style="margin:0 0 20px 0;color:#1a2a4a;">✈️ Flight Inspection Complete</h3>
+    <p style="color:#555;margin-bottom:24px;font-size:14px;">
+      Inspection finalized successfully. Moving to Completed archive...
+    </p>
+    
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <button onclick="finalizarParaCompleted()" 
+              style="padding:12px;background:#43a047;color:white;border:none;
+                     border-radius:8px;cursor:pointer;font-weight:bold;font-size:14px;
+                     transition:background .2s;">
+        ✓ Go to Completed
+      </button>
+      
+      <button onclick="fecharFlowModal()" 
+              style="padding:12px;background:#f0f0f0;color:#333;border:none;
+                     border-radius:8px;cursor:pointer;font-weight:bold;font-size:14px;">
+        ✕ Close
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL VIEW COMPLETED VTI/VTE ===== -->
+<div id="mod-fin-vtivte" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);z-index:9997;align-items:center;justify-content:center;">
+  <div style="background:white;border-radius:12px;padding:24px;max-width:700px;width:95%;max-height:90vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.2);">
+    <div id="mod-fin-vtivte-content"></div>
+  </div>
+</div>
+
+<!-- ===== MODAL PDF PREVIEW (DEV) ===== -->
+<div id="mod-pdf-preview" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);z-index:10000;flex-direction:column;align-items:center;justify-content:center;gap:10px;">
+  <div style="display:flex;gap:8px;align-items:center;z-index:10001;">
+    <span style="color:white;font-size:14px;font-weight:700;">📄 Pré-visualização de PDF</span>
+    <button onclick="devClosePDFPreview()" style="padding:7px 18px;background:transparent;color:#f4f4f4;border:1.5px solid #7a7a80;border-radius:8px;font-size:13px;font-weight:800;cursor:pointer;">✕ Fechar</button>
+    <button onclick="devDownloadPDF()" style="padding:7px 18px;background:#f4f4f4;color:#111111;border:none;border-radius:8px;font-size:13px;font-weight:800;cursor:pointer;">⬇ Baixar</button>
+  </div>
+  <iframe id="dev-pdf-iframe" src="" style="width:95vw;max-width:860px;height:80vh;border:none;border-radius:8px;background:white;"></iframe>
+</div>
+
+<!-- ===== MODAL GLOSSARY ===== -->
+<div id="mod-glossary" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;
+     background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:white;border-radius:12px;padding:24px;max-width:700px;width:95%;
+              max-height:90vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.2);">
+    
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+      <h3 style="margin:0;color:#1a2a4a;">📖 Abbreviations Glossary</h3>
+      <button onclick="fecharGlossario()" 
+              style="background:#f0f0f0;color:#333;border:none;padding:6px 12px;
+                     border-radius:6px;cursor:pointer;font-size:14px;font-weight:bold;">
+        ✕ Close
+      </button>
+    </div>
+
+    <input id="glossary-search" type="text" placeholder="🔍 Search abbreviation or definition..." 
+           oninput="filterGlossary()"
+           style="width:100%;padding:10px 14px;border:1.5px solid #dde3ed;border-radius:8px;
+                  font-size:13px;margin-bottom:16px;outline:none;box-sizing:border-box;">
+
+    <div id="glossary-content" style="max-height:60vh;overflow-y:auto;"></div>
+  </div>
+</div>
+
+<!-- ===== MODAL EDIT/ADD USER ===== -->
+<div id="mod-edit-user" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;
+     background:rgba(0,0,0,0.6);z-index:9998;align-items:center;justify-content:center;">
+  <div style="background:white;border-radius:16px;padding:28px;max-width:440px;width:95%;box-shadow:0 8px 32px rgba(0,0,0,0.22);max-height:90vh;overflow-y:auto;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+      <h3 id="eu-title" style="margin:0;color:#1a2a4a;font-size:17px;">Edit User</h3>
+      <button onclick="document.getElementById('mod-edit-user').style.display='none'"
+        style="background:#f0f0f0;color:#333;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:14px;font-weight:bold;">✕</button>
+    </div>
+    <div id="eu-username-row" style="margin-bottom:14px;">
+      <label style="display:block;font-size:12px;font-weight:700;color:#555;margin-bottom:5px;">Username *</label>
+      <input id="eu-user" type="text" placeholder="e.g. joao" style="width:100%;padding:10px 12px;border:1.5px solid #dde3ed;border-radius:8px;font-size:14px;box-sizing:border-box;">
+    </div>
+    <div style="margin-bottom:14px;">
+      <label style="display:block;font-size:12px;font-weight:700;color:#555;margin-bottom:5px;">Full Name *</label>
+      <input id="eu-nome" type="text" placeholder="e.g. João Silva" style="width:100%;padding:10px 12px;border:1.5px solid #dde3ed;border-radius:8px;font-size:14px;box-sizing:border-box;">
+    </div>
+    <div style="margin-bottom:14px;">
+      <label style="display:block;font-size:12px;font-weight:700;color:#555;margin-bottom:5px;">Email</label>
+      <input id="eu-email" type="email" placeholder="e.g. joao@tbaviation.com" style="width:100%;padding:10px 12px;border:1.5px solid #dde3ed;border-radius:8px;font-size:14px;box-sizing:border-box;">
+    </div>
+    <div style="margin-bottom:14px;">
+      <label style="display:block;font-size:12px;font-weight:700;color:#555;margin-bottom:5px;" id="eu-pass-label">Password</label>
+      <input id="eu-pass" type="text" placeholder="Leave blank to keep current" style="width:100%;padding:10px 12px;border:1.5px solid #dde3ed;border-radius:8px;font-size:14px;box-sizing:border-box;">
+    </div>
+    <div id="eu-role-row" style="margin-bottom:18px;">
+      <label style="display:block;font-size:12px;font-weight:700;color:#555;margin-bottom:5px;">Role</label>
+      <select id="eu-role" style="width:100%;padding:10px 12px;border:1.5px solid #dde3ed;border-radius:8px;font-size:14px;background:white;">
+        <option value="user">User</option>
+        <option value="adm">Admin</option>
+      </select>
+    </div>
+    <div id="eu-msg" style="font-size:13px;margin-bottom:14px;min-height:18px;"></div>
+    <div style="display:flex;gap:10px;">
+      <button onclick="saveEditUser()" style="flex:1;padding:13px;background:#1a2a4a;color:white;border:none;border-radius:9px;cursor:pointer;font-weight:700;font-size:14px;">
+        💾 Save
+      </button>
+      <button onclick="document.getElementById('mod-edit-user').style.display='none'"
+        style="padding:13px 20px;background:#f0f0f0;color:#333;border:none;border-radius:9px;cursor:pointer;font-weight:700;font-size:14px;">
+        Cancel
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL ADD/EDIT DOCUMENT ===== -->
+<div id="mod-add-doc" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;
+     background:rgba(0,0,0,0.6);z-index:9998;align-items:center;justify-content:center;">
+  <div style="background:white;border-radius:16px;padding:28px;max-width:460px;width:95%;box-shadow:0 8px 32px rgba(0,0,0,0.22);max-height:90vh;overflow-y:auto;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+      <h3 id="doc-title" style="margin:0;color:#1a2a4a;font-size:17px;">Add Document</h3>
+      <button onclick="document.getElementById('mod-add-doc').style.display='none'"
+        style="background:#f0f0f0;color:#333;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:14px;font-weight:bold;">✕</button>
+    </div>
+    <div style="margin-bottom:14px;">
+      <label style="display:block;font-size:12px;font-weight:700;color:#555;margin-bottom:5px;">Aircraft (Registration) *</label>
+      <input id="doc-aircraft" type="text" placeholder="e.g. PP-JDB" style="width:100%;padding:10px 12px;border:1.5px solid #dde3ed;border-radius:8px;font-size:14px;box-sizing:border-box;">
+    </div>
+    <div style="margin-bottom:14px;">
+      <label style="display:block;font-size:12px;font-weight:700;color:#555;margin-bottom:5px;">Document Type</label>
+      <select id="doc-type" style="width:100%;padding:10px 12px;border:1.5px solid #dde3ed;border-radius:8px;font-size:14px;background:white;">
+        <option value="LOA">LOA</option>
+        <option value="Certificate">Certificate</option>
+        <option value="License">License</option>
+        <option value="Insurance">Insurance</option>
+        <option value="Report">Report</option>
+        <option value="Other">Other</option>
+      </select>
+    </div>
+    <div style="margin-bottom:14px;">
+      <label style="display:block;font-size:12px;font-weight:700;color:#555;margin-bottom:5px;">Document Name *</label>
+      <input id="doc-name" type="text" placeholder="e.g. LOA RVSM" style="width:100%;padding:10px 12px;border:1.5px solid #dde3ed;border-radius:8px;font-size:14px;box-sizing:border-box;">
+    </div>
+    <div style="margin-bottom:14px;">
+      <label style="display:block;font-size:12px;font-weight:700;color:#555;margin-bottom:5px;">Expiry Date *</label>
+      <input id="doc-expiry" type="date" style="width:100%;padding:10px 12px;border:1.5px solid #dde3ed;border-radius:8px;font-size:14px;box-sizing:border-box;">
+    </div>
+    <div style="margin-bottom:18px;">
+      <label style="display:block;font-size:12px;font-weight:700;color:#555;margin-bottom:5px;">Notes (optional)</label>
+      <textarea id="doc-notes" rows="2" placeholder="Any additional info..." style="width:100%;padding:10px 12px;border:1.5px solid #dde3ed;border-radius:8px;font-size:14px;box-sizing:border-box;resize:vertical;"></textarea>
+    </div>
+    <div id="doc-msg" style="font-size:13px;margin-bottom:14px;min-height:18px;"></div>
+    <div style="display:flex;gap:10px;">
+      <button onclick="saveDoc()" style="flex:1;padding:13px;background:#1a2a4a;color:white;border:none;border-radius:9px;cursor:pointer;font-weight:700;font-size:14px;">
+        💾 Save
+      </button>
+      <button onclick="document.getElementById('mod-add-doc').style.display='none'"
+        style="padding:13px 20px;background:#f0f0f0;color:#333;border:none;border-radius:9px;cursor:pointer;font-weight:700;font-size:14px;">
+        Cancel
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL FEEDBACK ===== -->
+<div id="mod-feedback" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;
+     background:rgba(0,0,0,0.6);z-index:9998;align-items:center;justify-content:center;">
+  <div style="background:white;border-radius:16px;padding:28px;max-width:460px;width:95%;
+              box-shadow:0 8px 32px rgba(0,0,0,0.22);">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+      <h3 style="margin:0;color:#1a2a4a;font-size:17px;">💬 Send Feedback</h3>
+      <button onclick="document.getElementById('mod-feedback').style.display='none'"
+        style="background:#f0f0f0;color:#333;border:none;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:14px;font-weight:bold;">✕</button>
+    </div>
+    <p style="font-size:13px;color:#666;margin-bottom:16px;">Your message goes directly to the admin. We'll see it as soon as possible.</p>
+    <div style="margin-bottom:12px;">
+      <label style="display:block;font-size:13px;font-weight:600;color:#444;margin-bottom:6px;">Category</label>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="fb-cat-btn active" data-cat="bug"        onclick="fbSelectCat(this)">🐛 Bug</button>
+        <button class="fb-cat-btn"        data-cat="suggestion" onclick="fbSelectCat(this)">💡 Suggestion</button>
+        <button class="fb-cat-btn"        data-cat="question"   onclick="fbSelectCat(this)">❓ Question</button>
+        <button class="fb-cat-btn"        data-cat="other"      onclick="fbSelectCat(this)">📝 Other</button>
+      </div>
+    </div>
+    <div style="margin-bottom:20px;">
+      <label style="display:block;font-size:13px;font-weight:600;color:#444;margin-bottom:6px;">Message *</label>
+      <textarea id="fb-text" rows="4" placeholder="Describe the issue or your suggestion..."
+        style="width:100%;padding:10px 12px;border:1.5px solid #dde3ed;border-radius:8px;
+               font-size:13px;line-height:1.5;resize:vertical;box-sizing:border-box;font-family:inherit;outline:none;"></textarea>
+    </div>
+    <div style="display:flex;gap:10px;">
+      <button onclick="submitFeedback()"
+        style="flex:1;padding:13px;background:linear-gradient(135deg,#1a2a4a,#4A90D9);color:white;
+               border:none;border-radius:9px;cursor:pointer;font-weight:700;font-size:14px;">
+        📤 Send
+      </button>
+      <button onclick="document.getElementById('mod-feedback').style.display='none'"
+        style="padding:13px 20px;background:#f0f0f0;color:#333;border:none;border-radius:9px;cursor:pointer;font-weight:700;font-size:14px;">
+        Cancel
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== FLOATING SCROLL-TO-TOP BUTTON ===== -->
+<button id="fab-top" onclick="window.scrollTo({top:0,behavior:'smooth'})" title="Back to top">↑</button>
+
+<!-- ===== VERSION BADGE ===== -->
+<div id="app-version-badge" style="position:fixed;bottom:8px;left:12px;font-size:11px;color:rgba(100,100,120,0.85);pointer-events:none;z-index:99;font-family:monospace;font-weight:600;letter-spacing:0.5px;">TB Aviation v149</div>
+<script>
+(function(){
+  if(!('serviceWorker' in navigator))return;
+  // Read cache name from active SW to show real version
+  navigator.serviceWorker.ready.then(function(reg){
+    var sw=reg.active||reg.installing||reg.waiting;
+    if(!sw)return;
+    var mc=new MessageChannel();
+    mc.port1.onmessage=function(e){
+      if(e.data&&e.data.version){
+        var el=document.getElementById('app-version-badge');
+        if(el)el.textContent=e.data.version;
+      }
+    };
+    sw.postMessage({type:'GET_VERSION'},[ mc.port2]);
+  });
+})();
+</script>
+
+<script src="script.js"></script>
+<script src="script-vti-vte.js"></script>
+<script src="firebase-sync.js"></script>
+<script defer src="/_vercel/insights/script.js"></script>
+<script>
+// ── Service Worker registration + auto-update ────────────────
+if ('serviceWorker' in navigator) {
+  var _swReg = null;
+  var _swReloading = false;
+
+  // Reload as soon as a new SW takes control — but not while the user is
+  // actively typing in a form (would wipe unsaved input). Defer until the
+  // field loses focus instead of reloading blind.
+  navigator.serviceWorker.addEventListener('controllerchange', function() {
+    if (_swReloading) return;
+    _swReloading = true;
+
+    function isEditingField() {
+      var a = document.activeElement;
+      return !!(a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName));
+    }
+
+    function doReload() { window.location.reload(); }
+
+    if (!isEditingField()) { doReload(); return; }
+
+    if (typeof _showToast === 'function') {
+      _showToast('🔄 Nova versão disponível — será aplicada assim que você terminar de preencher este campo', 'warn');
+    }
+    var _waitIdle = setInterval(function() {
+      if (!isEditingField()) { clearInterval(_waitIdle); doReload(); }
+    }, 1500);
+  });
+
+  function _swActivateWaiting(sw) {
+    // Tell the waiting SW to skip waiting immediately
+    sw.postMessage({ type: 'SKIP_WAITING' });
+  }
+
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('/sw.js').then(function(reg) {
+      _swReg = reg;
+
+      // Force a network check for a new sw.js right now
+      reg.update();
+
+      // If a SW is already waiting (page was loaded after update)
+      if (reg.waiting) { _swActivateWaiting(reg.waiting); }
+
+      // A new SW started installing
+      reg.addEventListener('updatefound', function() {
+        var newSW = reg.installing;
+        newSW.addEventListener('statechange', function() {
+          // Once installed (downloaded + cached), activate it immediately
+          if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
+            _swActivateWaiting(newSW);
+          }
+        });
+      });
+    }).catch(function(e) { console.warn('SW reg failed:', e); });
+  });
+
+  // Re-check for updates every time the user brings the app to the foreground
+  document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'visible' && _swReg) {
+      _swReg.update();
+    }
+  });
+}
+
+// ── Offline / online detection ────────────────────────────────
+(function() {
+  function update() {
+    if (navigator.onLine) {
+      document.body.classList.remove('offline');
+    } else {
+      document.body.classList.add('offline');
+    }
+  }
+  window.addEventListener('online',  function() { update(); if(typeof cloudSave==='function') cloudSave(); });
+  window.addEventListener('offline', update);
+  update();
+})();
+</script>
+</body>
+</html>
