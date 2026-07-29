@@ -1,0 +1,10 @@
+{
+  "name": "td-aviation-fi",
+  "version": "1.0.0",
+  "private": true,
+  "description": "TD Aviation FI — PWA de fichas de inspeção de aeronaves",
+  "dependencies": {
+    "archiver": "^7.0.1",
+    "nodemailer": "^9.0.3"
+  }
+}
