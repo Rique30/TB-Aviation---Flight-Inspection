@@ -1,0 +1,83 @@
+{
+  "name": "TB Aviation - Flight Inspection System",
+  "short_name": "TB Aviation",
+  "description": "Flight Inspection Checklist and Mandatory Documents Management",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#ffffff",
+  "theme_color": "#1a2a4a",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "prefer_related_applications": false,
+
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-192-maskable.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icons/icon-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+
+  "screenshots": [
+    {
+      "src": "logo_tbaviation 2020-02.png",
+      "sizes": "540x720",
+      "type": "image/png",
+      "form_factor": "narrow"
+    }
+  ],
+
+  "shortcuts": [
+    {
+      "name": "Flight Inspection",
+      "short_name": "Inspection",
+      "description": "Access Flight Inspection checklist",
+      "url": "/?page=active",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Mandatory Documents",
+      "short_name": "Documents",
+      "description": "Access Mandatory Documents",
+      "url": "/?page=mandatory",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "VTI/VTE Examinations",
+      "short_name": "VTI/VTE",
+      "description": "Access VTI/VTE examinations",
+      "url": "/?page=vtivte",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Completed Records",
+      "short_name": "Completed",
+      "description": "View completed inspections",
+      "url": "/?page=fin",
+      "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ],
+
+  "categories": ["productivity", "business"]
+}
