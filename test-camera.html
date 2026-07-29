@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Camera Test</title>
+<style>
+  body { font-family: sans-serif; background: #111; color: white; padding: 20px; max-width: 500px; margin: 0 auto; }
+  h2 { color: #8ab4d8; }
+  .btn { display: block; width: 100%; padding: 16px; border: none; border-radius: 12px; font-size: 16px; font-weight: 700; cursor: pointer; margin-bottom: 14px; text-align: center; }
+  .cam-btn  { background: #1565C0; color: white; }
+  .gal-btn  { background: #37474f; color: white; }
+  label.btn { display: flex; align-items: center; justify-content: center; gap: 8px; }
+  #preview  { display: none; width: 100%; border-radius: 12px; margin-top: 16px; max-height: 400px; object-fit: contain; background: #222; }
+  .note { font-size: 12px; color: #888; margin-top: 6px; margin-bottom: 20px; }
+  .ok   { color: #4caf50; font-weight: bold; }
+  .section { background: #1a1a1a; border-radius: 12px; padding: 16px; margin-bottom: 20px; }
+</style>
+</head>
+<body>
+
+<h2>📷 Camera Test</h2>
+<p class="note">Teste antes de implementar nas checklists.</p>
+
+<div class="section">
+  <b>Opção 1 — Câmera nativa do celular</b>
+  <p class="note">Deve abrir diretamente o app câmera do celular (não o browser).</p>
+  <label class="btn cam-btn">
+    📷 Camera (nativa)
+    <input type="file" accept="image/*" capture="environment" id="inp-cam" style="display:none" onchange="mostrar(event,'CAM')">
+  </label>
+</div>
+
+<div class="section">
+  <b>Opção 2 — Galeria de fotos</b>
+  <p class="note">Deve abrir a galeria/arquivos (sem câmera).</p>
+  <label class="btn gal-btn">
+    🖼 Gallery (galeria)
+    <input type="file" accept="image/*" id="inp-gal" style="display:none" onchange="mostrar(event,'GAL')">
+  </label>
+</div>
+
+<div id="result"></div>
+<img id="preview">
+
+<script>
+function mostrar(ev, origem) {
+  var f = ev.target.files[0];
+  if (!f) return;
+  document.getElementById('result').innerHTML =
+    '<p class="ok">✅ ' + origem + ' — arquivo recebido: ' + f.name + ' (' + (f.size/1024).toFixed(1) + ' KB)</p>';
+  var r = new FileReader();
+  r.onload = function(e) {
+    var img = document.getElementById('preview');
+    img.src = e.target.result;
+    img.style.display = 'block';
+  };
+  r.readAsDataURL(f);
+}
+</script>
+</body>
+</html>
